@@ -1,0 +1,11 @@
+# Ignore everything:
+*
+
+# Except for the themes directories:
+
+!28_Python_py/
+!29_Python_Jupyter
+!31_SQL
+!32_R
+!.gitignore
+!README.MD
