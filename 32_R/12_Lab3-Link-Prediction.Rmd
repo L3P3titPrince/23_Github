@@ -1,0 +1,221 @@
+---
+title: "Lab 3-Link Prediction"
+author: "Prof.Feng Mai, Zihan Chen"
+output: html_document
+---
+In this lab, we will use a supervised learning approach to solve the link prediction problem. The main idea is that instead of using a single measure to rank the missing links, we use node and link features to output a probability that the link would be added in the future. To do this, we need to
+
+- Create a training set that contains positive samples (y = 1, a propotion of links that are missing but should be added) and negative samples (y = 0, the links that were never added).  
+- Create features from the network. Each link is an observation, the features can be node features (e.g. centrality) from both end of the link or the node similarity measures we demonstrated.   
+- Train statistical models.  
+- Create the same features on the test set and apply the trained model.
+- Assess the accuracy.
+
+*Important Note*: In this graph, the node (vertex) names are numbers. But it is important to keep them as characters (strings) throughout the lab so igraph functions do not confuse names (characters) with ids (integers). For example, `degree(g, '45')` gives the degree of node whose name is `"45"`, whereas `degree(g, 45)` gives the degree of node whose id is `45`. The former is what we want. Therefore. if an edge list is a dataframe, make sure the variable types are characters (chr). You can check the variable types of a df using `glimpse(df)`.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+(Import packages and load data)
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(igraph)
+library(tidyverse)
+library(e1071)
+library(Metrics)
+
+load("train_edges.rdata")
+load("test_nodes_names.rdata")
+# For speed reasons, we only use the first 50 nodes in the test set. 
+test_nodes_names <- test_nodes_names[1:50]
+# we sort each row so that the node with smaller node is V1 
+train_edges <- as.data.frame(t(apply(train_edges, 1, sort)), stringsAsFactors = F) %>% mutate_all(as.character) 
+colnames(train_edges) <- c('X1', 'X2')
+g <- graph.data.frame(train_edges, directed = F)
+```
+
+# Create training set node pairs
+
+```{r}
+positive_sample_frac <- 0.10 # pct of edges in the current graph to be used as positive samples
+```
+
+We first sample 10% of the current links as y = 1 observations.
+```{r}
+positive_edges <- sample(E(g), positive_sample_frac * ecount(g))
+positive_edges <- as_ids(positive_edges) # as_ids actually returns node names if the names are available
+positive_edges <- as.data.frame(positive_edges)
+positive_edges <- positive_edges %>% separate( positive_edges, c('X1', 'X2'))
+```
+
+We need to sample some of current missing links as y = 0 observations. We first randomly sample 2000 pairs of nodes. 
+```{r}
+X1 <- as_ids(sample(V(g), 2000)) # as_ids actually returns node names if the names are available
+X2 <- as_ids(sample(V(g), 2000)) # as_ids actually returns node names if the names are available
+negative_edges <- cbind(X1, X2)
+# sort each row
+negative_edges <- as.data.frame(negative_edges)
+negative_edges <- as.data.frame(t(apply(negative_edges, 1, sort))) %>% mutate_all(as.character)
+# negative_edges <- as.data.frame(t(apply(negative_edges, 1, sort)), stringsAsFactors = F)
+colnames(negative_edges) <- c('X1', 'X2')
+```
+
+## Question 1
+To make sure that the `negative_edges` are all missing links, remove links that  
+
+1) are already in the `train_edges` dataframe.    
+Hint: you can use `anti_join`.  
+
+2) X1 and X2 are the same.
+
+Note that it is possible that you do not remove any edge in this step. 
+```{r}
+#### START YOUR CODE HERE ####
+ joining.by=c('X1','X2')
+#### END YOUR CODE HERE ####
+```
+
+## Question 2
+Create a variable `y` for both positive_edges and negative_edges. `y = 1` for positive_edges and `y = 0` for negative_edges.  
+Then rbind positive and negative edges togethers into a dataframe `pos_neg_edges`.The dataframe `pos_neg_edges` should have 3 columns: X1, X2, y. 
+```{r}
+#### START YOUR CODE HERE ####
+
+
+find in Lab 1
+#### END YOUR CODE HERE ####
+```
+
+#  Create test set node pairs
+Next, for each node X in `test_nodes_names`, find all their possible neighbours and pair them with node X. To make the problem tracable, for each node in the test set, we only consider recommending a link (adding a node as a possible neighbour) if the distance is within 3.  
+```{r}
+test_nodes_names <- sapply(test_nodes_names, toString)
+test_nodes_names[1]
+
+find_possible_neighbours <- function(node_name){
+  current_neighbours <- c(toString(node_name), as.vector(neighbors(g, toString(node_name))$name))
+  possible_neighbours <- setdiff(as_ids(ego(g, nodes=node_name, order=3)[[1]]), current_neighbours)
+  return(data.frame(node_name, possible_neighbours, stringsAsFactors = FALSE))
+}
+find_possible_neighbours(test_nodes_names[1])[1:5, ]
+```
+
+We apply the function to all the nodes in `test_nodes_names`, concatenate the results in a dataframe called `test_edges`
+```{r}
+test_edges <- lapply(test_nodes_names, find_possible_neighbours)
+test_edges <- bind_rows(test_edges)
+```
+
+## Question 3
+Rename the column names in `test_edges` to `X1` and `X2`.
+```{r}
+#### START YOUR CODE HERE ####
+
+
+
+#### END YOUR CODE HERE ####
+```
+
+Remove the existing edges from consideration.
+```{r}
+test_edges <- test_edges %>% anti_join(train_edges) %>% filter(X1 != X2)
+```
+
+# Create similarity features
+For each pair of nodes, we can calculate their Jaccard and Adamic-Adar (invlogweighted) similarity. Instead of creating the entire similarity matrix, we can find use a function to find pairwise similarity. 
+```{r}
+dice_sim <- similarity.dice(g) 
+adamic_adar_sim <- similarity.invlogweighted(g)
+jaccard_sim <- similarity.jaccard(g)
+# name the rows and cols of the similarity matrices using node names
+node_names = as.vector(V(g)$name)
+rownames(dice_sim) <- node_names
+colnames(dice_sim) <- node_names
+rownames(adamic_adar_sim) <- node_names
+colnames(adamic_adar_sim) <- node_names
+rownames(jaccard_sim) <- node_names
+colnames(jaccard_sim) <- node_names
+
+nodes_sim <- function(a, b, sim_matrix){
+  return(sim_matrix[cbind(a, b)])
+}
+# compute jaccard and adamic-adar sim for a pair of nodes
+nodes_sim('13369', '19865', dice_sim)
+nodes_sim('17932', '4515', jaccard_sim)
+nodes_sim('17932', '4515', adamic_adar_sim)
+# we can also query vectors 
+nodes_sim(c('45', '17932'), c('19423', '4515'), dice_sim)
+```
+We now create our first feature for prediction --  the dice similarity between X1 and X2. 
+```{r}
+pos_neg_edges <- pos_neg_edges %>% mutate(dice = nodes_sim(X1, X2, dice_sim))
+```
+
+## Question 4
+Create two more columns in the `pos_neg_edges` dataframe.   
+- `jaccard`: jaccard similarity between X1 and X2  
+- `invlogweighted`: Adamic-adar similarity between X1 and X2  
+```{r}
+#### START YOUR CODE HERE ####
+
+#### END YOUR CODE HERE ####
+```
+
+## Question 5
+Create 4 more columns in the `pos_neg_edges` dataframe.   
+
+- `degree1`: normalized degree of X1  
+- `degree2`: normalized degree of X2  
+- `betweenness1`: normalized betweenness centrality of X1  
+- `betweenness2`: normalized betweenness centrality of X2  
+```{r}
+#### START YOUR CODE HERE ####
+
+
+#### END YOUR CODE HERE ####
+```
+(hint: Your `pos_neg_edges` should have 10 columns now.)
+
+# Model training
+We can now train a model to predict link given the features. 
+```{r}
+reg_model <- lm("y~dice+jaccard+invlogweighted+degree1+degree2+betweenness1+betweenness2", data = pos_neg_edges)
+```
+
+
+## Question 6
+Create the same 7 columns for `test_edges` dataframe:  
+`dice, jaccard, invlogweighted, degree1, degree2, betweenness1, betweenness2`.   
+Your test_edges should have 9 variables.  
+```{r}
+#### START YOUR CODE HERE ####
+
+
+#### END YOUR CODE HERE ####
+```
+
+# Test model performance
+Now we are ready to apply the model to the `test_edges` set. 
+
+```{r}
+test_edges$p_hat <- predict(reg_model, test_edges, type='response')
+
+recommend_links <- function(node_name, n_recommend = 10){
+  # for a given node find the 10 nodes with highest p_pat and predict the links 
+  recommended_nodes <- test_edges %>% filter(X1 == node_name) %>% top_n(n=n_recommend, wt=p_hat) %>% .$X2
+  return(recommended_nodes)
+}
+
+recommend_links(test_nodes_names[1])
+
+my_answer <- lapply(test_nodes_names[1:50], recommend_links, n_recommend = 10)
+load("data/solution.rdata")
+mapk(10, actual = solution[1:50], predicted = my_answer)
+```
+
+## Question 7
+Do you get better performance than simply ranking nodes by Adamic & Adar similarity? Why do you think this is the case? Give a few possible reasons. Bonus points if you provide empirical evidence to back up your conjectures.  
+
+*Answer*: 
+
+

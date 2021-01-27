@@ -1,0 +1,258 @@
+---
+title: "BIA-658 Lab 1 Exercises"
+author: "Zi Wang"
+output: html_document
+---
+**Note**:   
+
+- Submit it as a HTML file (Knit to HTML) as HW2.
+- Make sure you that the `Lab-1-Data/` folder is in the same directory of the Rmd file. 
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(igraph)
+library(tidyverse)
+```
+
+Q1:  
+Assign [100, -50, 20, -20, 40] to vector c1, [-214, -150, 10, -35, 10] to vector c2.   
+Use the weekdays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] to name both vectors. 
+
+Finally, add up the third element from c1 and second element from c2.
+
+```{r}
+# Write your code here
+c1<-c(100,-50,20,-20,40)
+names(c1)<-c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+c2<-c(-214, -150, 10, -35, 10)
+names(c2)<-c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+c3<-c1[3]+c2[2]
+c3
+```
+
+Q2:   
+Assign value [460, 300, 200, 470, 300, 160] to a vector c1. Use this vector to build a 3x2 matrix. The row name is [“A", "B", "C"], the col name is [“D”, “E”]. 
+
+Next step, get the sum of each col, name it as “Sum_col”, as well as the sum of each row, called “Sum_row”. Then, bind the new row and col to the original matrix.
+
+Finally, select out the element at 4th row and 3nd col in this new matrix.
+
+```{r}
+# Write your code here
+c1<-c(460, 300, 200, 470, 300, 160)
+Matrix_c<-matrix(c1,nrow=3)
+row_1<-c('A','B','C')
+rownames(Matrix_c)<-(row_1)
+col_1<-c('D','E')
+colnames(Matrix_c)<-(col_1)
+sum_col<-colSums(Matrix_c)
+sum_row<-rowSums(Matrix_c)
+M1<-cbind(Matrix_c,sum_col)
+M2<-rbind(M1,sum_row)
+M2[4,3]
+
+
+```
+
+
+Q3:   
+Write a function definition for fun_1().
+
+* One input argument, num_views
+
+* If num_views is greater than 15, the function prints out "Nice job" and returns num_views. 
+
+* Otherwise, the function prints out "Bad for you" and returns 0.
+
+* Finally, call the function and apply it on the following vector: (16, 19, 3, 25, 12, 17, 4)
+
+```{r}
+# Write your code here
+fun_1<-function(num_views)
+{
+  c<-length(num_views)
+  for (i in c){
+  if (num_views>15){
+    print("Nice job")
+    return(num_views)
+    c<-c-1
+  }
+  else if(c>0){
+    print("Bad for you")
+    return(0)
+    c<-c-1
+  }
+  }
+}
+
+c7<-c(16, 19, 3, 25, 12, 17, 4)
+c6<-1:20
+fun_1(c6)
+
+```
+
+Q4:  
+
+The FizzBuzz test is a popular test that companies use to screen applicants who claim they can code. A surprising number of applicants (some claim 99%) would fail the test. 
+
+Write a program in R that prints the numbers from 1 to 100. But for multiples of three print “Fizz” instead of the number and for the multiples of five print “Buzz”. For numbers which are multiples of both three and five print “FizzBuzz”. The output should look like
+
+[1] 1  
+[1] 2  
+[1] "Fizz"  
+[1] 4  
+[1] "Buzz"  
+[1] "Fizz"  
+[1] 7  
+[1] 8  
+[1] "Fizz"  
+[1] "Buzz"  
+[1] 11  
+[1] "Fizz"  
+[1] 13  
+[1] 14  
+[1] "FizzBuzz"  
+[1] 16  
+
+```{r}
+# Write your code here
+for (i in 1:100){
+  if(i%%15==0){
+    print("FizzBuzz")
+  }
+  else if (i%%5==0){
+    print("Buzz")
+  }
+  else if (i%%3==0){
+    print("Fizz")
+  }
+  else{
+    return(1)
+  }
+}
+
+```
+
+Q5:  
+Here is your first challenge of Tidyverse. Load the `MarathonData.csv` dataset. Remember the three function we just introduced? Time to apply them on this new set!
+
+* select all the observations whose Category is M40
+
+* create a column new_time, calculated as 12 x Marathon time
+
+* sort in descending order by that new column you just create
+
+* output the first 3 rows of the sorted data frame
+
+```{r echo = T, message=FALSE}
+MarathonData <- read_csv("108_MarathonData.csv")
+# Write your code here
+#load tidyverse package
+library(tidyverse)
+#read csv and save it in a file head
+MarathonData <- read_csv("20_MarathonData.csv")
+#get to know what is context in MarathonData
+str(MarathonData)
+#filter M40 from Category and put it in a new DataFrame Mara_1
+Mara_1<-MarathonData%>%
+  filter(Category=="M40")
+#Add new colunms as new_time which equal to 12*MarathonTime
+Mara_2<-MarathonData%>%
+  mutate(new_time=MarathonTime*12)
+#Mara_3 will be new DataFrame with decsending order by new cuolum we just create
+Mara_3<-Mara_2%>%
+  arrange(desc(new_time))
+#print the first 3 rows of former sorted DataFrame
+head(Mara_3,3)
+
+
+
+
+```
+
+
+
+
+Q6:   
+Next step, let's do some summarize work on the dataset we just got. Let's find the median value of Marathon time and maximum value of km4week within each combination of Category and class, saving them into medianTime and maxWeeks, respectively.
+
+* median value of Marathon time
+* maximum value of km4week
+* all value should within each combination of Category and class
+
+```{r echo = T}
+# Write your code here
+Mara_sum<-MarathonData%>%
+  group_by(Category,Class)%>%
+  summarize(time_median=median(MarathonTime),
+            km4week_max=max(km4week))
+
+
+
+
+```
+
+Q7: Now it's time to draw some graphs for the data analysis. Suppose we want to use the max value of Marathon time as y-axis, Class as x-axis. Meanwhile, we can use the Category, Class to assign the observations into each group. Finally, use the bar plot to show the graph.
+
+* x-axis: Class
+* y-axis: Marathon time
+* group: Category,Class
+* plot: bar plot
+
+```{r echo = T }
+# Write your code here
+# Import the ggplot package
+library(ggplot2)
+Mara_4<-MarathonData%>%
+  group_by(Category,Class)%>%
+  summarize(time_max=max(MarathonTime))
+ggplot(data=Mara_4,
+       aes(x=Class,y=time_max,fill=Category))+geom_col(position="dodge")
+
+
+
+
+
+```
+
+__The following two questions uses the Karete graph.__
+
+Q8:  
+List all the nodes with degrees <= 2.  
+
+```{r echo = T}
+#g2 <- read.graph(file="Lab-1-Data/karate.gml", format = "gml")
+# Write your code here
+library(igraph)
+g2 <- read.graph(file="107_karate.gml", format = "gml")
+V(g2)$name <- paste0("N", c(1:vcount(g2)))
+#list all the nodes with degrees <=2
+V(g2)[degree(g2) <=2]
+
+
+
+
+```
+
+Q9:  
+What is the density of the entire network if we remove node 1? (Hint: use `delete_vertices` to remove a node.)
+```{r echo = T}
+# Write your code here
+#remove node N1 and assign it to new g3
+g3<-delete_vertices(g2,v=1)
+graph.density(g3)
+
+
+```
+
+Q10:   
+Verify that the local transitivity (cluster coeffecient) for node 2 is the same as its 1.5-degree egocentric network (with node 2 removed)'s density. (Hint: Use `transitivity(, typle="local")` to find the local transitivity. Use `graph.density` to find the density of a graph.)
+```{r echo = T}
+# Write your code here
+transitivity(g2,type="local")
+graph.density(g2)
+graph.density(g3)
+
+```
+
+
+ 
